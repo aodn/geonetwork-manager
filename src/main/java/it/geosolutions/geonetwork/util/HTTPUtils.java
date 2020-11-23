@@ -27,6 +27,7 @@ package it.geosolutions.geonetwork.util;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
 import java.net.ConnectException;
@@ -292,7 +293,13 @@ public class HTTPUtils {
     public  String post(String url, RequestEntity requestEntity) {
         return send(new PostMethod(url), url, requestEntity);
     }
-    
+
+    public  String post(String url, NameValuePair[] params) {
+        PostMethod postMethod = new PostMethod(url);
+        postMethod.setRequestBody(params);
+        return send(postMethod, url, null);
+    }
+
     //==========================================================================
     //=== HTTP requests
     //==========================================================================

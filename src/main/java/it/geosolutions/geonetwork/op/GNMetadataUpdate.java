@@ -27,18 +27,17 @@ package it.geosolutions.geonetwork.op;
 import it.geosolutions.geonetwork.exception.GNLibException;
 import it.geosolutions.geonetwork.exception.GNServerException;
 import it.geosolutions.geonetwork.util.HTTPUtils;
-
-import java.io.File;
-import java.io.StringReader;
 import org.apache.commons.httpclient.HttpStatus;
+import org.apache.commons.httpclient.NameValuePair;
 import org.apache.log4j.Logger;
-import org.jdom.CDATA;
 import org.jdom.Document;
-
 import org.jdom.Element;
 import org.jdom.input.SAXBuilder;
 import org.jdom.output.Format;
 import org.jdom.output.XMLOutputter;
+
+import java.io.File;
+import java.io.StringReader;
 
 /**
  * <h3>Update metadata</h3>
@@ -62,11 +61,11 @@ public class GNMetadataUpdate {
     *
     */
     public static void update(HTTPUtils connection, String gnServiceURL, Long id, String version, Element inputElement)  throws GNLibException, GNServerException {
-       Element updateRequest = buildUpdateRequest(inputElement, id, version); 
+       NameValuePair[] updateRequest = buildUpdateRequest(inputElement, id, version);
 
        // update the metadata
        LOGGER.debug("Updating metadata " + id + " version " + version);
-       gnUpdateMetadata(connection, gnServiceURL, updateRequest);
+       gnUpdateMetadata(connection, id, gnServiceURL, updateRequest);
        LOGGER.info("Updated metadata " + id + " version " + version);
    }
 
@@ -81,63 +80,43 @@ public class GNMetadataUpdate {
      * <li>data (mandatory) Contains the metadata record</li>
      * </ul>
      */
-    private static Element buildUpdateRequest(Element metadataElement, Long id, String version)  throws GNLibException, GNServerException {
+    private static NameValuePair[] buildUpdateRequest(Element metadataElement, Long id, String version) {
         if(LOGGER.isDebugEnabled()) 
             LOGGER.debug("Compiling request document");
         
         XMLOutputter outputter = new XMLOutputter(Format.getRawFormat());
-        CDATA cdata = new CDATA(outputter.outputString(metadataElement)); // CDATA format is required by GN
-        
-        Element request = new Element("request");
-        request.addContent(new Element("id").setText(String.valueOf(id)));
-        if(!version.isEmpty())
-            request.addContent(new Element("version").setText(version));
-        request.addContent(new Element("data").addContent(cdata));                    
-        return request;
+
+        return new NameValuePair[] {
+            new NameValuePair("id", id.toString()),
+            new NameValuePair("version", version),
+            new NameValuePair("currTab", "xml"),
+            new NameValuePair("data", outputter.outputString(metadataElement)),
+            new NameValuePair("template", "n")
+        };
     }
     
 
     /**
-     * Insert a metadata in GN.<br/>
+     * Update a metadata record in GN.<br/>
      * 
      * <ul>
-     * <li>Url: <tt>http://<i>server</i>:<i>port</i>/geonetwork/srv/en/metadata.update.finish</tt></li>
-     * <li>Mime-type: <tt>application/xml</tt></li>
-     * <li>Post request: <pre>{@code 
-     * 
-     * <?xml version="1.0" encoding="UTF-8"?>
-     * <request>
-     *    <id>2</id>
-     *    <version>2</version>
-     *    <data><![CDATA[
-     *       <gmd:MD_Metadata xmlns:gmd="http://www.isotc211.org/2005/gmd"
-     *                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-     *       ...
-     *          </gmd:DQ_DataQuality>
-     *         </gmd:dataQualityInfo>
-     *       </gmd:MD_Metadata>]]>
-     *    </data>
-     * </request> }</pre></li>
-     * </ul>
-     *      * 
-     * @see <a href="http://geonetwork-opensource.org/latest/developers/xml_services/metadata_xml_services.html#insert-metadata-metadata-insert" >GeoNetwork documentation about inserting metadata</a>
+     * <li>Url: <tt>http://<i>server</i>:<i>port</i>/geonetwork/srv/api/records/{id}/editor</tt></li>
+     *
      */
-    private static void gnUpdateMetadata(HTTPUtils connection, String baseURL, final Element gnRequest) throws GNLibException, GNServerException {
+    private static void gnUpdateMetadata(HTTPUtils connection, Long id, String baseURL,
+     final NameValuePair[] params) throws GNLibException, GNServerException {
 
-        String serviceURL = baseURL + "/srv/eng/metadata.update.finish";
+        String serviceURL = baseURL + "/srv/api/records/" + id.toString() + "/editor" ;
         connection.setIgnoreResponseContentOnSuccess(true);
-        String res = gnPost(connection, serviceURL, gnRequest);
+        String res = gnPost(connection, serviceURL, params);
         if(connection.getLastHttpStatus() != HttpStatus.SC_OK)
             throw new GNServerException("Error updating metadata in GeoNetwork (HTTP code "+connection.getLastHttpStatus()+")");        
     }
     
-    private static String gnPost(HTTPUtils connection, String serviceURL, final Element gnRequest) throws GNLibException, GNServerException {
-        
-        final XMLOutputter outputter = new XMLOutputter(Format.getCompactFormat());
-        String s = outputter.outputString(gnRequest);
-        
+    private static String gnPost(HTTPUtils connection, String serviceURL, final NameValuePair[] params) {
+
         connection.setIgnoreResponseContentOnSuccess(false);
-        String res = connection.postXml(serviceURL, s);
+        String res = connection.post(serviceURL, params);
 //        if(LOGGER.isInfoEnabled())
 //            LOGGER.info(serviceURL + " returned --> " + res);
         return res;
