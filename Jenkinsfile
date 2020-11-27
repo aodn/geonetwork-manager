@@ -14,7 +14,7 @@ pipeline {
         stage('deploy') {
             when { branch "imos-master" }
             steps {
-                sh 'mvn -B deploy'
+                sh 'mvn -B deploy -DskipTests'
             }
         }
     }
